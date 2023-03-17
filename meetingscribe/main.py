@@ -146,6 +146,7 @@ def srt2txt(srt_file: str = "output.srt", output_file: str = "output.txt"):
     with open(output_file, "w", encoding="utf-8") as f:
         f.write(text)
 
+    logging.info(f"TXT file saved to: {output_file}")
 
 @app.command(short_help="Transcribe (and optionally translate to English) audio file into SRT file", help="Transcribe (and optionally translate) audio file into SRT file\nTranslation will translate from source language to English")
 def process(input_audio_file: str, output_srt_file: str = "output.srt", source_language: Optional[str] = None, segment_length: int = 10 * 60 * 1000, yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"), model: str = "whisper-1"):
