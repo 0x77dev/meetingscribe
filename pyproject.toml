@@ -20,6 +20,7 @@ srt = { extras = ["all"], version = "^3.5.2" }
 pysrt = { extras = ["all"], version = "^1.1.2" }
 aiohttp = { extras = ["all"], version = "^3.8.4" }
 cchardet = { extras = ["all"], version = "^2.1.7" }
+rich = "10.11.0"
 
 [tool.poetry.dev-dependencies]
 typer-cli = "^0.0.13"
