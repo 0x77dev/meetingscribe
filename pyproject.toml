@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "meetingscribe"
-version = "0.1.0"
+version = "0.1.1"
 description = "MeetingScribe is an AI-driven command-line tool designed to streamline your meeting experience by handling transcription, translation, and note-taking. Effortlessly generate accurate translation/transcription in English from audio file. Additionally, the tool intelligently creates meeting notes, summaries, and identifies action items."
 authors = ["Mykhailo Marynenko <mykhailo@0x77.dev>"]
 readme = "README.md"
