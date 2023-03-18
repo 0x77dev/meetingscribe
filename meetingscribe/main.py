@@ -10,6 +10,10 @@ from tqdm import tqdm
 import srt
 import io
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.prompt import Prompt
+from rich.text import Text
+from rich.panel import Panel
+from rich import print
 
 app = typer.Typer(help="MeetingScribe is an AI-driven command-line tool designed to streamline your meeting experience by handling transcription, translation, and note-taking. Effortlessly generate accurate translation/transcription in English from audio file. Additionally, the tool intelligently creates meeting notes, summaries, and identifies action items.")
 
@@ -48,6 +52,54 @@ def process_chunk(chunk: str, model: str) -> str:
     summary = openai_response.choices[0].message["content"]
     return summary.strip()
 
+def start_chat(srt_file, model, temperature: float = 0.5):
+    with open(srt_file, "r") as file:
+        srt_data = file.read()
+
+    srt_subs = pysrt.from_string(srt_data)
+    text = " ".join([sub.text for sub in srt_subs])
+
+    text_chunks = split_text_into_chunks(text)
+    compressed_chunks = []
+
+    logging.info(f"Splitted text into {len(text_chunks)} chunks.")
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [executor.submit(process_chunk, chunk, model)
+                   for chunk in text_chunks]
+        progress_bar = tqdm(as_completed(futures), total=len(
+            text_chunks), desc="Compressing chunks", unit="chunk")
+
+        for future in progress_bar:
+            compressed_chunk = future.result()
+            compressed_chunks.append(compressed_chunk)
+
+    compressed_text = " ".join(compressed_chunks)
+
+    default_question = "What is it about?"
+
+    while True:
+        question = Prompt.ask("Question", default=default_question)
+        default_question = None
+
+        response = openai.ChatCompletion.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that answers questions based on the given transcript. The transcript has been compressed for better understanding."},
+                {"role": "user", "content": f"{compressed_text}\n---\nAnswer the following question: {question}."},
+            ],
+            temperature=0.5,
+        )
+
+        answer = response.choices[0].message["content"]
+
+        print(Panel(Text(answer), title=question))
+
+
+@app.command(help="Chat for answering questions based on the provided SRT file")
+def interactive(input_srt_file: str = "output.srt", model: str = "gpt-3.5-turbo", temperature: float = 0.5):
+    logging.debug(f"Starting Chat TUI using SRT file: {input_srt_file}")
+    start_chat(input_srt_file, model, temperature)
 
 def summarize_file(srt_file: str, model: str = "gpt-3.5-turbo", yes: bool = False) -> str:
     with open(srt_file, "r") as file:
@@ -69,7 +121,8 @@ def summarize_file(srt_file: str, model: str = "gpt-3.5-turbo", yes: bool = Fals
     cost_per_token = 0.000002
     total_cost = cost_per_token * total_tokens
 
-    logging.warn(f"The estimated cost of summarizing this file is ~${total_cost:.2f}. {total_tokens} tokens, and cost per token is ${cost_per_token:.6f}.")
+    logging.warn(
+        f"The estimated cost of summarizing this file is ~${total_cost:.2f}. {total_tokens} tokens, and cost per token is ${cost_per_token:.6f}.")
     if not yes:
         confirmation = input("Do you want to proceed? (y/n): ")
         if confirmation.lower() != 'y':
@@ -93,16 +146,17 @@ def summarize_file(srt_file: str, model: str = "gpt-3.5-turbo", yes: bool = Fals
         TextColumn("{task.description}"),
         transient=True,
     ) as progress:
-      progress.add_task(description="Summarizing chunks into single answer", total=None)
-      openai_response = openai.ChatCompletion.create(
-          model=model,
-          messages=[
-              {"role": "system", "content": "You are a helpful assistant, that helps with meeting notes, you receive meeting conversation from TTS and should provide useful and informative notes and summary. Your task is to assemble the meeting notes from the one meeting conversation chunks."},
-              {"role": "user",
-                  "content": f"{combined_summary}\n---\nassemble chunks into one text in markdown format, with summary, notes, conversation breakdown, action items (if any) from conversation, etc. Remember this is a one meeting not multiple meetings."},
-          ],
-          temperature=0.01,
-      )
+        progress.add_task(
+            description="Summarizing chunks into single answer", total=None)
+        openai_response = openai.ChatCompletion.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant, that helps with meeting notes, you receive meeting conversation from TTS and should provide useful and informative notes and summary. Your task is to assemble the meeting notes from the one meeting conversation chunks."},
+                {"role": "user",
+                    "content": f"{combined_summary}\n---\nassemble chunks into one text in markdown format, with summary, notes, conversation breakdown, action items (if any) from conversation, etc. Remember this is a one meeting not multiple meetings."},
+            ],
+            temperature=0.01,
+        )
 
     refined_summary = openai_response.choices[0].message["content"]
 
@@ -147,6 +201,7 @@ def srt2txt(srt_file: str = "output.srt", output_file: str = "output.txt"):
         f.write(text)
 
     logging.info(f"TXT file saved to: {output_file}")
+
 
 @app.command(short_help="Transcribe (and optionally translate to English) audio file into SRT file", help="Transcribe (and optionally translate) audio file into SRT file\nTranslation will translate from source language to English")
 def process(input_audio_file: str, output_srt_file: str = "output.srt", source_language: Optional[str] = None, segment_length: int = 10 * 60 * 1000, yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"), model: str = "whisper-1"):
@@ -232,9 +287,11 @@ def process_segment(segment: AudioSegment, index: int, source_language: Optional
     temp_buffer.seek(0)
 
     if source_language is not None:
-        translated_srt = openai.Audio.translate(model, temp_buffer, source_language=source_language, response_format="srt")
+        translated_srt = openai.Audio.translate(
+            model, temp_buffer, source_language=source_language, response_format="srt")
     else:
-        translated_srt = openai.Audio.transcribe(model, temp_buffer, response_format="srt")
+        translated_srt = openai.Audio.transcribe(
+            model, temp_buffer, response_format="srt")
 
     logging.debug(f"SRT chunk {index}:\n{translated_srt}")
 
