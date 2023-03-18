@@ -206,8 +206,8 @@ def srt2txt(srt_file: str = "output.srt", output_file: str = "output.txt"):
 @app.command(short_help="Transcribe (and optionally translate to English) audio file into SRT file", help="Transcribe (and optionally translate) audio file into SRT file\nTranslation will translate from source language to English")
 def process(input_audio_file: str, output_srt_file: str = "output.srt", source_language: Optional[str] = None, segment_length: int = 10 * 60 * 1000, yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"), model: str = "whisper-1"):
     logging.debug(f"Loading audio file {input_audio_file}")
-    is_transcribing = source_language is not None
-    action = "Transcribing" if is_transcribing else "Translating"
+    is_translating = source_language is not None
+    action = "Translating" if is_translating else "Transcribing"
 
     audio = AudioSegment.from_file(input_audio_file)
 
@@ -228,7 +228,7 @@ def process(input_audio_file: str, output_srt_file: str = "output.srt", source_l
     total_cost = cost_per_minute * total_duration / 60
 
     logging.warn(
-        f"The estimated cost of {action.lower()} this audio file is ${total_cost:.2f}. Cost is calculated based on {cost_per_minute} USD per minute of audio.")
+        f"The estimated cost of {action.lower()} this audio file is ${total_cost:.2f}. {cost_per_minute} USD per minute of audio.")
     if not yes:
         confirmation = input("Do you want to proceed? (y/n): ")
         if confirmation.lower() != 'y':
